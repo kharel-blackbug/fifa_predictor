@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WC 2026 Fantasy Predictor</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  /* ── TOKENS ── */
+  :root {
+    --navy: #0D1B2A;
+    --gold: #C9A84C;
+    --gold-light: #F0D080;
+    --green-win: #1a7a4a;
+    --surface: #FFFFFF;
+    --surface2: #F5F6F8;
+    --border: #E2E5EA;
+    --text: #0D1B2A;
+    --text2: #5A6474;
+    --text3: #9AA0AB;
+    --radius: 10px;
+    --shadow: 0 2px 12px rgba(13,27,42,.08);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--surface2); color: var(--text); font-size: 15px; }
+
+  /* ── HEADER ── */
+  .site-header {
+    background: var(--navy);
+    color: #fff;
+    padding: 18px 20px 14px;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  }
+  .site-header h1 { font-size: 20px; font-weight: 700; letter-spacing: -.3px; }
+  .site-header h1 span { color: var(--gold); }
+  .user-chip {
+    background: rgba(255,255,255,.12); border-radius: 20px;
+    padding: 5px 14px; font-size: 13px; display: none; align-items: center; gap: 8px;
+  }
+  .user-chip button { background: none; border: none; color: var(--gold-light); cursor: pointer; font-size: 12px; padding: 0; }
+
+  /* ── TABS ── */
+  .tabs { background: var(--navy); display: flex; gap: 4px; padding: 0 16px 12px; overflow-x: auto; }
+  .tab-btn {
+    font-size: 13px; padding: 7px 18px; border-radius: 20px; cursor: pointer;
+    border: 1px solid transparent; color: rgba(255,255,255,.55); background: transparent; white-space: nowrap;
+  }
+  .tab-btn.active { background: var(--gold); color: var(--navy); font-weight: 600; }
+
+  /* ── SCREENS ── */
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  /* ── LOGIN ── */
+  .login-wrap { max-width: 400px; margin: 40px auto; padding: 0 16px; }
+  .card { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); padding: 28px 24px; box-shadow: var(--shadow); }
+  .card h2 { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+  .card .sub { font-size: 13px; color: var(--text2); margin-bottom: 22px; line-height: 1.5; }
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 13px; font-weight: 600; color: var(--text2); margin-bottom: 6px; }
+  .field input {
+    width: 100%; padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px;
+    font-size: 16px; background: var(--surface2); color: var(--text); outline: none;
+    transition: border-color .15s;
+  }
+  .field input:focus { border-color: var(--navy); }
+  .btn-primary {
+    width: 100%; padding: 13px; border-radius: 24px; border: none; cursor: pointer;
+    font-size: 15px; font-weight: 700; background: var(--navy); color: #fff; margin-top: 4px;
+    transition: opacity .15s;
+  }
+  .btn-primary:hover { opacity: .88; }
+  .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+  .msg { font-size: 13px; margin-top: 10px; text-align: center; min-height: 18px; }
+  .msg.err { color: #c0392b; }
+  .msg.ok { color: var(--green-win); }
+  .tab-switch { text-align: center; margin-top: 18px; font-size: 13px; color: var(--text2); }
+  .tab-switch a { color: var(--navy); font-weight: 600; cursor: pointer; text-decoration: underline; }
+
+  /* ── PREDICTOR ── */
+  .predictor-wrap { max-width: 680px; margin: 0 auto; padding: 16px; }
+  .pts-strip { background: var(--navy); color: rgba(255,255,255,.75); font-size: 11px; padding: 8px 16px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .pts-strip span { background: rgba(255,255,255,.1); border-radius: 10px; padding: 2px 8px; }
+  .pts-strip span b { color: var(--gold-light); }
+  .prog-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 13px; color: var(--text2); }
+  .prog-row strong { color: var(--text); }
+  .bar-wrap { height: 7px; background: var(--border); border-radius: 6px; overflow: hidden; margin-bottom: 16px; }
+  .bar-fill { height: 100%; background: var(--gold); border-radius: 6px; transition: width .3s; }
+  .day-lbl { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text3); margin: 18px 0 8px; padding-bottom: 5px; border-bottom: 1px solid var(--border); }
+  .day-lbl:first-child { margin-top: 0; }
+  .match-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 8px; overflow: hidden; }
+  .match-tag { font-size: 10px; color: var(--text3); padding: 6px 12px 0; text-align: right; }
+  .btn-row { display: grid; grid-template-columns: 1fr auto 1fr; gap: 6px; padding: 7px 10px 10px; align-items: center; }
+  .team-btn {
+    padding: 11px 8px; border-radius: 8px; border: 1px solid var(--border);
+    cursor: pointer; font-size: 13px; background: var(--surface2); color: var(--text);
+    text-align: center; line-height: 1.3; transition: all .15s;
+  }
+  .team-btn:hover { border-color: var(--navy); }
+  .team-btn.picked { background: var(--navy); color: #fff; border-color: var(--navy); font-weight: 600; }
+  .draw-btn {
+    padding: 9px 12px; border-radius: 8px; border: 1px solid var(--border);
+    cursor: pointer; font-size: 12px; background: var(--surface2); color: var(--text2); white-space: nowrap;
+    transition: all .15s;
+  }
+  .draw-btn:hover { border-color: var(--navy); }
+  .draw-btn.picked { background: #888; color: #fff; border-color: #888; }
+  .ko-note { font-size: 13px; color: var(--text2); margin-bottom: 14px; line-height: 1.6; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+  .ko-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; overflow: hidden; }
+  .ko-header { padding: 8px 12px 0; display: flex; justify-content: space-between; align-items: center; }
+  .ko-header span { font-size: 11px; color: var(--text3); }
+  .ko-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 8px 10px 4px; }
+  .ko-inputs input { width: 100%; padding: 9px 10px; border: 1px solid var(--border); border-radius: 7px; font-size: 13px; background: var(--surface2); color: var(--text); outline: none; }
+  .ko-inputs input:focus { border-color: var(--navy); }
+  .ko-btn-row { display: grid; grid-template-columns: 1fr auto 1fr; gap: 6px; padding: 6px 10px 10px; align-items: center; }
+  .submit-bar { position: sticky; bottom: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; box-shadow: 0 -4px 16px rgba(0,0,0,.06); }
+  .submit-bar span { font-size: 13px; color: var(--text2); }
+  .submit-bar button { padding: 11px 28px; border-radius: 22px; border: none; cursor: pointer; font-size: 14px; font-weight: 700; background: var(--gold); color: var(--navy); }
+  .submit-bar button:disabled { opacity: .4; cursor: not-allowed; }
+  .locked-banner { background: #eaf7ef; border: 1px solid #a3d9b8; border-radius: var(--radius); padding: 16px 18px; margin-bottom: 18px; display: flex; gap: 12px; align-items: flex-start; }
+  .locked-banner .icon { font-size: 22px; }
+  .locked-banner p { font-size: 13px; color: var(--green-win); line-height: 1.6; }
+  .locked-banner strong { display: block; font-size: 15px; margin-bottom: 2px; }
+
+  /* ── LEADERBOARD ── */
+  .lb-wrap { max-width: 600px; margin: 0 auto; padding: 16px; }
+  .lb-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 8px; }
+  .lb-header h2 { font-size: 20px; font-weight: 700; }
+  .refresh-btn { padding: 8px 18px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface); cursor: pointer; font-size: 13px; color: var(--text2); }
+  .refresh-btn:hover { background: var(--surface2); }
+  .lb-table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+  .lb-table thead { background: var(--navy); color: #fff; }
+  .lb-table th { padding: 12px 14px; text-align: left; font-size: 12px; font-weight: 600; letter-spacing: .04em; }
+  .lb-table th:last-child, .lb-table td:last-child { text-align: right; }
+  .lb-table td { padding: 12px 14px; font-size: 14px; border-bottom: 1px solid var(--border); }
+  .lb-table tr:last-child td { border-bottom: none; }
+  .lb-table tr:hover td { background: var(--surface2); }
+  .rank-1 td:first-child { color: var(--gold); font-weight: 700; font-size: 16px; }
+  .rank-2 td:first-child { color: #A0A0A0; font-weight: 700; }
+  .rank-3 td:first-child { color: #CD7F32; font-weight: 700; }
+  .pts-badge { background: var(--navy); color: var(--gold-light); padding: 3px 10px; border-radius: 12px; font-size: 13px; font-weight: 700; }
+  .lb-empty { text-align: center; padding: 40px; color: var(--text2); font-size: 14px; }
+  .lb-note { font-size: 12px; color: var(--text3); text-align: center; margin-top: 12px; }
+  .my-row td { background: #fffbea !important; }
+
+  /* ── SPINNER ── */
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <h1>🏆 WC 2026 <span>Fantasy</span> Predictor</h1>
+  <div class="user-chip" id="userChip">
+    <span id="chipName"></span>
+    <button onclick="logout()">Sign out</button>
+  </div>
+</header>
+
+<div class="pts-strip">
+  <span>Groups: <b>Win 2</b> · Draw 1</span>
+  <span>R32/R16: <b>Win 3</b> · Draw 2</span>
+  <span>Quarters: <b>Win 4</b> · Draw 3</span>
+  <span>Semis/3rd: <b>Win 5</b> · Draw 4</span>
+  <span>Final: <b>Win 10</b> · Draw 5</span>
+</div>
+
+<div class="tabs" id="mainTabs" style="display:none">
+  <button class="tab-btn active" onclick="showMainTab('predict')">My Predictions</button>
+  <button class="tab-btn" onclick="showMainTab('leaderboard')">🥇 Leaderboard</button>
+</div>
+
+<!-- ═══ LOGIN SCREEN ═══ -->
+<div class="screen active" id="screen-login">
+  <div class="login-wrap">
+    <div class="card" id="loginCard">
+      <h2>Welcome! 👋</h2>
+      <p class="sub">Enter your name and choose a 4-digit PIN. Use the same PIN every time you come back.</p>
+      <div class="field">
+        <label>Your name</label>
+        <input type="text" id="loginName" placeholder="e.g. Rahul Sharma" autocomplete="name">
+      </div>
+      <div class="field">
+        <label>4-digit PIN</label>
+        <input type="password" id="loginPin" placeholder="e.g. 1234" maxlength="4" inputmode="numeric">
+      </div>
+      <button class="btn-primary" id="loginBtn" onclick="doLogin()">Continue →</button>
+      <div class="msg" id="loginMsg"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PREDICT SCREEN ═══ -->
+<div class="screen" id="screen-predict">
+  <div class="predictor-wrap">
+    <div id="lockedBanner" class="locked-banner" style="display:none">
+      <div class="icon">🔒</div>
+      <div>
+        <strong>Predictions submitted!</strong>
+        Your picks are locked in. Check the leaderboard as results come in. You can still download your prediction sheet below.
+        <br><br>
+        <button onclick="downloadPDF()" style="padding:8px 20px;border-radius:16px;border:1px solid var(--green-win);background:transparent;color:var(--green-win);cursor:pointer;font-size:13px;font-weight:600">Download my PDF</button>
+      </div>
+    </div>
+    <div id="predictContent"></div>
+    <div id="predictKO"></div>
+  </div>
+  <div class="submit-bar" id="submitBar">
+    <span id="submitStatus">0 of 104 picked</span>
+    <button id="submitBtn" onclick="submitPredictions()">Submit my predictions →</button>
+  </div>
+</div>
+
+<!-- ═══ LEADERBOARD SCREEN ═══ -->
+<div class="screen" id="screen-leaderboard">
+  <div class="lb-wrap">
+    <div class="lb-header">
+      <h2>Leaderboard</h2>
+      <button class="refresh-btn" onclick="loadLeaderboard()">↻ Refresh</button>
+    </div>
+    <div id="lbContent"><div class="lb-empty">Loading…</div></div>
+    <div class="lb-note">Points update as real results are entered in your Google Sheet.</div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+// CONFIGURATION — update these two values
+// ══════════════════════════════════════════════
+const APPS_SCRIPT_URL = 'YOUR_APPS_SCRIPT_URL_HERE';
+// e.g. 'https://script.google.com/macros/s/AKfyc.../exec'
+
+// ══════════════════════════════════════════════
+// MATCH DATA
+// ══════════════════════════════════════════════
+const GF = [
+  {d:'Thu 11 Jun',g:'A',h:'Mexico',a:'South Africa'},
+  {d:'Thu 11 Jun',g:'A',h:'South Korea',a:'Czechia'},
+  {d:'Fri 12 Jun',g:'B',h:'Canada',a:'Bosnia & Herz.'},
+  {d:'Fri 12 Jun',g:'D',h:'USA',a:'Paraguay'},
+  {d:'Sat 13 Jun',g:'B',h:'Qatar',a:'Switzerland'},
+  {d:'Sat 13 Jun',g:'C',h:'Brazil',a:'Morocco'},
+  {d:'Sat 13 Jun',g:'C',h:'Haiti',a:'Scotland'},
+  {d:'Sat 13 Jun',g:'D',h:'Australia',a:'Turkiye'},
+  {d:'Sun 14 Jun',g:'E',h:'Germany',a:'Curacao'},
+  {d:'Sun 14 Jun',g:'F',h:'Netherlands',a:'Japan'},
+  {d:'Sun 14 Jun',g:'E',h:'Ivory Coast',a:'Ecuador'},
+  {d:'Sun 14 Jun',g:'F',h:'Sweden',a:'Tunisia'},
+  {d:'Mon 15 Jun',g:'H',h:'Spain',a:'Cape Verde'},
+  {d:'Mon 15 Jun',g:'G',h:'Belgium',a:'Egypt'},
+  {d:'Mon 15 Jun',g:'H',h:'Saudi Arabia',a:'Uruguay'},
+  {d:'Mon 15 Jun',g:'G',h:'Iran',a:'New Zealand'},
+  {d:'Tue 16 Jun',g:'I',h:'France',a:'Senegal'},
+  {d:'Tue 16 Jun',g:'I',h:'Iraq',a:'Norway'},
+  {d:'Tue 16 Jun',g:'J',h:'Argentina',a:'Algeria'},
+  {d:'Tue 16 Jun',g:'J',h:'Austria',a:'Jordan'},
+  {d:'Wed 17 Jun',g:'K',h:'Portugal',a:'DR Congo'},
+  {d:'Wed 17 Jun',g:'L',h:'England',a:'Croatia'},
+  {d:'Wed 17 Jun',g:'L',h:'Ghana',a:'Panama'},
+  {d:'Wed 17 Jun',g:'K',h:'Uzbekistan',a:'Colombia'},
+  {d:'Thu 18 Jun',g:'A',h:'Czechia',a:'South Africa'},
+  {d:'Thu 18 Jun',g:'B',h:'Switzerland',a:'Bosnia & Herz.'},
+  {d:'Thu 18 Jun',g:'B',h:'Canada',a:'Qatar'},
+  {d:'Thu 18 Jun',g:'A',h:'Mexico',a:'South Korea'},
+  {d:'Fri 19 Jun',g:'C',h:'Scotland',a:'Morocco'},
+  {d:'Fri 19 Jun',g:'D',h:'USA',a:'Australia'},
+  {d:'Fri 19 Jun',g:'C',h:'Brazil',a:'Haiti'},
+  {d:'Fri 19 Jun',g:'D',h:'Paraguay',a:'Turkiye'},
+  {d:'Sat 20 Jun',g:'E',h:'Germany',a:'Ivory Coast'},
+  {d:'Sat 20 Jun',g:'F',h:'Japan',a:'Sweden'},
+  {d:'Sat 20 Jun',g:'E',h:'Curacao',a:'Ecuador'},
+  {d:'Sat 20 Jun',g:'F',h:'Netherlands',a:'Tunisia'},
+  {d:'Sun 21 Jun',g:'G',h:'Belgium',a:'Iran'},
+  {d:'Sun 21 Jun',g:'H',h:'Uruguay',a:'Cape Verde'},
+  {d:'Sun 21 Jun',g:'H',h:'Saudi Arabia',a:'Spain'},
+  {d:'Sun 21 Jun',g:'G',h:'New Zealand',a:'Egypt'},
+  {d:'Mon 22 Jun',g:'J',h:'Argentina',a:'Austria'},
+  {d:'Mon 22 Jun',g:'I',h:'Senegal',a:'Iraq'},
+  {d:'Mon 22 Jun',g:'I',h:'France',a:'Norway'},
+  {d:'Mon 22 Jun',g:'J',h:'Algeria',a:'Jordan'},
+  {d:'Tue 23 Jun',g:'K',h:'Portugal',a:'Uzbekistan'},
+  {d:'Tue 23 Jun',g:'L',h:'England',a:'Ghana'},
+  {d:'Tue 23 Jun',g:'L',h:'Croatia',a:'Panama'},
+  {d:'Tue 23 Jun',g:'K',h:'DR Congo',a:'Colombia'},
+  {d:'Thu 26 Jun',g:'A',h:'Mexico',a:'Czechia'},
+  {d:'Thu 26 Jun',g:'A',h:'South Africa',a:'South Korea'},
+  {d:'Thu 26 Jun',g:'B',h:'Canada',a:'Bosnia & Herz.'},
+  {d:'Thu 26 Jun',g:'B',h:'Qatar',a:'Switzerland'},
+  {d:'Fri 27 Jun',g:'C',h:'Brazil',a:'Scotland'},
+  {d:'Fri 27 Jun',g:'C',h:'Morocco',a:'Haiti'},
+  {d:'Fri 27 Jun',g:'D',h:'USA',a:'Turkiye'},
+  {d:'Fri 27 Jun',g:'D',h:'Australia',a:'Paraguay'},
+  {d:'Sat 28 Jun',g:'E',h:'Germany',a:'Ecuador'},
+  {d:'Sat 28 Jun',g:'E',h:'Ivory Coast',a:'Curacao'},
+  {d:'Sat 28 Jun',g:'F',h:'Netherlands',a:'Sweden'},
+  {d:'Sat 28 Jun',g:'F',h:'Japan',a:'Tunisia'},
+  {d:'Sun 29 Jun',g:'G',h:'Belgium',a:'New Zealand'},
+  {d:'Sun 29 Jun',g:'G',h:'Egypt',a:'Iran'},
+  {d:'Sun 29 Jun',g:'H',h:'Spain',a:'Uruguay'},
+  {d:'Sun 29 Jun',g:'H',h:'Cape Verde',a:'Saudi Arabia'},
+  {d:'Mon 30 Jun',g:'I',h:'France',a:'Iraq'},
+  {d:'Mon 30 Jun',g:'I',h:'Senegal',a:'Norway'},
+  {d:'Mon 30 Jun',g:'J',h:'Argentina',a:'Jordan'},
+  {d:'Mon 30 Jun',g:'J',h:'Austria',a:'Algeria'},
+  {d:'Tue 1 Jul',g:'K',h:'Portugal',a:'DR Congo'},
+  {d:'Tue 1 Jul',g:'K',h:'Uzbekistan',a:'Colombia'},
+  {d:'Tue 1 Jul',g:'L',h:'England',a:'Panama'},
+  {d:'Tue 1 Jul',g:'L',h:'Croatia',a:'Ghana'},
+];
+
+const KO_ROUNDS = [
+  {id:'r32',n:'Round of 32',count:16,pts:{w:3,d:2},dates:'28 Jun – 3 Jul'},
+  {id:'r16',n:'Round of 16',count:8,pts:{w:3,d:2},dates:'4 – 7 Jul'},
+  {id:'qf',n:'Quarter-finals',count:4,pts:{w:4,d:3},dates:'9 – 11 Jul'},
+  {id:'sf',n:'Semi-finals',count:2,pts:{w:5,d:4},dates:'14 – 15 Jul'},
+];
+
+// ══════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════
+let currentUser = null;
+let picks = {};
+let isLocked = false;
+
+// ══════════════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════════════
+async function doLogin() {
+  const name = document.getElementById('loginName').value.trim();
+  const pin  = document.getElementById('loginPin').value.trim();
+  const msg  = document.getElementById('loginMsg');
+  if (!name) { msg.className='msg err'; msg.textContent='Please enter your name.'; return; }
+  if (pin.length !== 4 || !/^\d{4}$/.test(pin)) { msg.className='msg err'; msg.textContent='PIN must be exactly 4 digits.'; return; }
+  const btn = document.getElementById('loginBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Checking…';
+  msg.textContent = '';
+  try {
+    const res = await fetch(`${APPS_SCRIPT_URL}?action=login&name=${encodeURIComponent(name)}&pin=${encodeURIComponent(pin)}`);
+    const data = await res.json();
+    if (data.status === 'ok') {
+      currentUser = { name, pin };
+      localStorage.setItem('wc2026_user', JSON.stringify(currentUser));
+      if (data.submitted) {
+        picks = data.picks || {};
+        isLocked = true;
+      }
+      onLoggedIn();
+    } else {
+      msg.className='msg err'; msg.textContent = data.message || 'Incorrect PIN. Try again.';
+    }
+  } catch(e) {
+    msg.className='msg err'; msg.textContent='Could not connect. Check your internet.';
+  }
+  btn.disabled = false; btn.innerHTML = 'Continue →';
+}
+
+function logout() {
+  currentUser = null; picks = {}; isLocked = false;
+  localStorage.removeItem('wc2026_user');
+  document.getElementById('userChip').style.display = 'none';
+  document.getElementById('mainTabs').style.display = 'none';
+  showScreen('login');
+}
+
+function onLoggedIn() {
+  document.getElementById('chipName').textContent = currentUser.name;
+  document.getElementById('userChip').style.display = 'flex';
+  document.getElementById('mainTabs').style.display = 'flex';
+  buildPredictor();
+  showScreen('predict');
+  showMainTab('predict');
+}
+
+// Try auto-login from localStorage
+window.addEventListener('DOMContentLoaded', () => {
+  const saved = localStorage.getItem('wc2026_user');
+  if (saved) {
+    try {
+      const u = JSON.parse(saved);
+      document.getElementById('loginName').value = u.name;
+      document.getElementById('loginPin').value = u.pin;
+      doLogin();
+    } catch(e) {}
+  }
+});
+
+// ══════════════════════════════════════════════
+// SCREENS & TABS
+// ══════════════════════════════════════════════
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + id).classList.add('active');
+}
+
+function showMainTab(id) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', ['predict','leaderboard'][i]===id));
+  showScreen(id);
+  if (id === 'leaderboard') loadLeaderboard();
+}
+
+// ══════════════════════════════════════════════
+// BUILD PREDICTOR
+// ══════════════════════════════════════════════
+function buildPredictor() {
+  if (isLocked) {
+    document.getElementById('lockedBanner').style.display = 'flex';
+    document.getElementById('submitBar').style.display = 'none';
+  }
+
+  // Group stage
+  const days = {};
+  GF.forEach((f,i) => { if(!days[f.d]) days[f.d]=[]; days[f.d].push({...f,i}); });
+  let html = '';
+  for (const d in days) {
+    html += `<div class="day-lbl">${d}</div>`;
+    days[d].forEach(f => {
+      const p = picks[`g_${f.i}`] || '';
+      html += matchCard(`g_${f.i}`, f.h, f.a, p, `Group ${f.g}`);
+    });
+  }
+  document.getElementById('predictContent').innerHTML = html;
+
+  // KO rounds
+  let koHtml = '';
+  KO_ROUNDS.forEach(r => {
+    koHtml += `<div class="day-lbl" style="margin-top:24px">${r.n} &nbsp;·&nbsp; ${r.dates}</div>`;
+    koHtml += `<div class="ko-note">Type in both teams, then pick your winner (or draw).</div>`;
+    for (let i=0; i<r.count; i++) {
+      const hk=`${r.id}_h_${i}`, ak=`${r.id}_a_${i}`, pk=`${r.id}_${i}`;
+      const hv=picks[hk]||'', av=picks[ak]||'', pv=picks[pk]||'';
+      koHtml += koCard(r.id, i, r.n, r.dates, hk, ak, pk, hv, av, pv);
+    }
+  });
+
+  // 3rd place
+  koHtml += `<div class="day-lbl" style="margin-top:24px">3rd Place Match &nbsp;·&nbsp; 14/15 Jul</div>`;
+  koHtml += `<div class="ko-note">The two semi-final losers.</div>`;
+  koHtml += koCard('tp',0,'3rd Place','14/15 Jul','tp_h','tp_a','tp',picks['tp_h']||'',picks['tp_a']||'',picks['tp']||'');
+
+  // Final
+  koHtml += `<div class="day-lbl" style="margin-top:24px">🏆 The Final &nbsp;·&nbsp; 19 Jul · New York / NJ</div>`;
+  koHtml += koCard('fi',0,'Final','19 Jul','fi_h','fi_a','fi',picks['fi_h']||'',picks['fi_a']||'',picks['fi']||'');
+
+  document.getElementById('predictKO').innerHTML = koHtml;
+  updateSubmitBar();
+}
+
+function matchCard(pk, h, a, picked, tag) {
+  const disabled = isLocked ? 'disabled' : '';
+  return `<div class="match-card">
+    <div class="match-tag">${tag}</div>
+    <div class="btn-row">
+      <button class="team-btn${picked===h?' picked':''}" ${disabled} onclick="setPick('${pk}','${h}')">${h}</button>
+      <button class="draw-btn${picked==='D'?' picked':''}" ${disabled} onclick="setPick('${pk}','D')">Draw</button>
+      <button class="team-btn${picked===a?' picked':''}" ${disabled} onclick="setPick('${pk}','${a}')">${a}</button>
+    </div>
+  </div>`;
+}
+
+function koCard(rid, idx, label, dates, hk, ak, pk, hv, av, pv) {
+  const hn = hv||'Team A', an = av||'Team B';
+  const dis = isLocked ? 'disabled' : '';
+  return `<div class="ko-card">
+    <div class="ko-header"><span>${label} · Match ${idx+1}</span><span>${dates}</span></div>
+    <div class="ko-inputs">
+      <input placeholder="Home team…" value="${hv}" ${dis}
+        oninput="picks['${hk}']=this.value; refreshKOBtns('${pk}','${hk}','${ak}')">
+      <input placeholder="Away team…" value="${av}" ${dis}
+        oninput="picks['${ak}']=this.value; refreshKOBtns('${pk}','${hk}','${ak}')">
+    </div>
+    <div class="ko-btn-row" id="krow_${pk}">
+      <button class="team-btn${pv===hn&&hn!=='Team A'?' picked':''}" id="kb_h_${pk}" ${dis}
+        onclick="setKOPick('${pk}','${hk}','${ak}',0)">${hn}</button>
+      <button class="draw-btn${pv==='D'?' picked':''}" ${dis}
+        onclick="setPick('${pk}','D')">Draw</button>
+      <button class="team-btn${pv===an&&an!=='Team B'?' picked':''}" id="kb_a_${pk}" ${dis}
+        onclick="setKOPick('${pk}','${hk}','${ak}',1)">${an}</button>
+    </div>
+  </div>`;
+}
+
+function setPick(pk, val) {
+  if (isLocked) return;
+  picks[pk] = val;
+  // update all buttons with this group
+  document.querySelectorAll(`[onclick*="'${pk}'"]`).forEach(b => {
+    if (b.classList.contains('team-btn')) b.classList.toggle('picked', b.textContent.trim() === val && val !== 'D');
+    if (b.classList.contains('draw-btn')) b.classList.toggle('picked', val === 'D');
+  });
+  updateSubmitBar();
+}
+
+function setKOPick(pk, hk, ak, side) {
+  const val = side===0 ? (picks[hk]||'Team A') : (picks[ak]||'Team B');
+  picks[pk] = val;
+  const bh = document.getElementById(`kb_h_${pk}`), ba = document.getElementById(`kb_a_${pk}`);
+  if(bh) bh.classList.toggle('picked', side===0);
+  if(ba) ba.classList.toggle('picked', side===1);
+  const drawBtns = document.querySelectorAll(`#krow_${pk} .draw-btn`);
+  drawBtns.forEach(b => b.classList.remove('picked'));
+  updateSubmitBar();
+}
+
+function refreshKOBtns(pk, hk, ak) {
+  const hn = picks[hk]||'Team A', an = picks[ak]||'Team B';
+  const bh = document.getElementById(`kb_h_${pk}`), ba = document.getElementById(`kb_a_${pk}`);
+  if(bh) { bh.textContent=hn; bh.setAttribute('onclick', `setKOPick('${pk}','${hk}','${ak}',0)`); }
+  if(ba) { ba.textContent=an; ba.setAttribute('onclick', `setKOPick('${pk}','${hk}','${ak}',1)`); }
+}
+
+function countPicks() {
+  let n=0;
+  GF.forEach((_,i)=>{ if(picks[`g_${i}`]) n++; });
+  KO_ROUNDS.forEach(r=>{ for(let i=0;i<r.count;i++) if(picks[`${r.id}_${i}`]) n++; });
+  if(picks['tp']) n++;
+  if(picks['fi']) n++;
+  return n;
+}
+
+function updateSubmitBar() {
+  const n = countPicks();
+  document.getElementById('submitStatus').textContent = `${n} of 104 picked`;
+  document.getElementById('submitBtn').disabled = n < 104;
+  document.getElementById('submitBtn').textContent = n < 104
+    ? `${104-n} picks remaining`
+    : 'Submit my predictions →';
+}
+
+// ══════════════════════════════════════════════
+// SUBMIT
+// ══════════════════════════════════════════════
+async function submitPredictions() {
+  if (!confirm('Submit your predictions? You cannot change them after this.')) return;
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Submitting…';
+  try {
+    const payload = { action:'submit', name: currentUser.name, pin: currentUser.pin, picks: JSON.stringify(picks) };
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method:'POST', body: JSON.stringify(payload),
+      headers:{'Content-Type':'application/json'}
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      isLocked = true;
+      document.getElementById('lockedBanner').style.display = 'flex';
+      document.getElementById('submitBar').style.display = 'none';
+      document.querySelectorAll('.team-btn,.draw-btn,.ko-inputs input').forEach(el => el.disabled=true);
+      alert('Predictions submitted! Good luck 🎉');
+    } else {
+      alert(data.message || 'Something went wrong. Try again.');
+      btn.disabled=false; btn.innerHTML='Submit my predictions →';
+    }
+  } catch(e) {
+    alert('Connection error. Try again.');
+    btn.disabled=false; btn.innerHTML='Submit my predictions →';
+  }
+}
+
+// ══════════════════════════════════════════════
+// LEADERBOARD
+// ══════════════════════════════════════════════
+async function loadLeaderboard() {
+  document.getElementById('lbContent').innerHTML = '<div class="lb-empty">Loading…</div>';
+  try {
+    const res = await fetch(`${APPS_SCRIPT_URL}?action=leaderboard`);
+    const data = await res.json();
+    if (!data.rows || data.rows.length === 0) {
+      document.getElementById('lbContent').innerHTML = '<div class="lb-empty">No predictions submitted yet. Be the first!</div>';
+      return;
+    }
+    const sorted = [...data.rows].sort((a,b) => b.pts - a.pts);
+    let html = `<table class="lb-table">
+      <thead><tr><th>Rank</th><th>Name</th><th>Correct picks</th><th>Points</th></tr></thead><tbody>`;
+    sorted.forEach((row, i) => {
+      const rankClass = i===0?'rank-1':i===1?'rank-2':i===2?'rank-3':'';
+      const medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1;
+      const isMe = currentUser && row.name === currentUser.name ? ' my-row' : '';
+      html += `<tr class="${rankClass}${isMe}">
+        <td>${medal}</td>
+        <td>${row.name}${isMe?' <b style="color:var(--gold);font-size:11px">(you)</b>':''}</td>
+        <td style="color:var(--text2)">${row.correct || 0}</td>
+        <td><span class="pts-badge">${row.pts}</span></td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    document.getElementById('lbContent').innerHTML = html;
+  } catch(e) {
+    document.getElementById('lbContent').innerHTML = '<div class="lb-empty">Could not load leaderboard. Try refreshing.</div>';
+  }
+}
+
+// ══════════════════════════════════════════════
+// PDF DOWNLOAD
+// ══════════════════════════════════════════════
+function downloadPDF() {
+  const {jsPDF} = window.jspdf;
+  const doc = new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  const name = currentUser ? currentUser.name : 'Predictor';
+  const W=210, M=14; let y=0;
+  function chk(n){if(y+n>282){doc.addPage();y=16;}}
+  doc.setFillColor(13,27,42); doc.rect(0,0,W,24,'F');
+  doc.setTextColor(255,255,255); doc.setFontSize(16); doc.setFont('helvetica','bold');
+  doc.text('FIFA WORLD CUP 2026 — MY PREDICTIONS',W/2,11,{align:'center'});
+  doc.setFontSize(10); doc.setFont('helvetica','normal');
+  doc.text(`${name}   |   ${new Date().toLocaleDateString('en-GB')}`,W/2,19,{align:'center'});
+  y=30; doc.setTextColor(0,0,0);
+  doc.setFillColor(255,250,225); doc.rect(M,y,W-M*2,9,'F');
+  doc.setFontSize(8); doc.setTextColor(100,60,0);
+  doc.text('Groups W=2 D=1  |  R32/R16 W=3 D=2  |  Quarters W=4 D=3  |  Semis/3rd W=5 D=4  |  Final W=10 D=5',W/2,y+6,{align:'center'});
+  y+=13; doc.setTextColor(0,0,0);
+  function secHdr(t,s){chk(12);doc.setFillColor(232,241,255);doc.rect(M,y,W-M*2,8,'F');doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(13,27,42);doc.text(t,M+3,y+5.5);if(s){doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(130,130,130);doc.text(s,W-M-2,y+5.5,{align:'right'});}y+=10;doc.setTextColor(0,0,0);}
+  function mrow(h,a,p,pts){chk(7);doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(50,50,50);const cw=(W-M*2-30)/2;if(p===h)doc.setFont('helvetica','bold');doc.text(h,M+2,y,{maxWidth:cw});doc.setFont('helvetica','normal');doc.setTextColor(120,120,120);doc.text(p==='D'?'Draw':(p||'—'),W/2,y,{align:'center'});doc.setTextColor(50,50,50);if(p===a)doc.setFont('helvetica','bold');doc.text(a,W-M-2,y,{align:'right',maxWidth:cw});doc.setFont('helvetica','normal');if(pts>0){doc.setTextColor(26,122,74);doc.setFontSize(7.5);doc.text('+'+pts,W-M+4,y,{align:'right'});}doc.setTextColor(200,200,200);doc.line(M,y+1.5,W-M,y+1.5);y+=6.5;}
+  const groups={};
+  GF.forEach((f,i)=>{if(!groups[f.g])groups[f.g]=[];groups[f.g].push({...f,i});});
+  for(const g in groups){
+    secHdr(`GROUP ${g}`,'Win=2 Draw=1');
+    groups[g].forEach(f=>{const p=picks[`g_${f.i}`]||'';mrow(f.h,f.a,p,p?p==='D'?1:2:0);});
+    y+=2;
+  }
+  KO_ROUNDS.forEach(r=>{
+    secHdr(r.n.toUpperCase(),`${r.dates} · Win=${r.pts.w} Draw=${r.pts.d}`);
+    for(let i=0;i<r.count;i++){const hn=picks[`${r.id}_h_${i}`]||'?',an=picks[`${r.id}_a_${i}`]||'?',p=picks[`${r.id}_${i}`]||'';mrow(hn,an,p,p?p==='D'?r.pts.d:r.pts.w:0);}
+    y+=2;
+  });
+  secHdr('3RD PLACE MATCH','14/15 Jul · Win=5 Draw=4');
+  mrow(picks['tp_h']||'?',picks['tp_a']||'?',picks['tp']||'',picks['tp']?picks['tp']==='D'?4:5:0);y+=2;
+  secHdr('THE FINAL — 19 JULY · NEW YORK / NEW JERSEY','Win=10 Draw=5');
+  const fp=picks['fi']||'';mrow(picks['fi_h']||'?',picks['fi_a']||'?',fp,fp?fp==='D'?5:10:0);y+=4;
+  if(fp&&fp!=='D'){chk(16);doc.setFillColor(13,27,42);doc.rect(M,y,W-M*2,13,'F');doc.setTextColor(201,168,76);doc.setFontSize(13);doc.setFont('helvetica','bold');doc.text(`WORLD CUP WINNER: ${fp}`,W/2,y+9,{align:'center'});y+=16;}
+  doc.save(`WC2026_${name.replace(/\s+/g,'_')}.pdf`);
+}
+</script>
+</body>
+</html>
